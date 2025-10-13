@@ -39,7 +39,7 @@ Other:
 Running tests can be done using `go test -v .`
 
 ## Example usage
-```
+```go
 const pathToRawFile = "./dir/file.NEF"
 processor := libraw.NewProcessor(libraw.NewProcessorOptions())
 img, metadata, err := processor.ProcessRaw(pathToRawFile)
