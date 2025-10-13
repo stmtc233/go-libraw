@@ -195,22 +195,16 @@ func (opts *ProcessorOptions) Apply(params C.libraw_output_params_t) C.libraw_ou
 }
 
 func (opts *ProcessorOptions) Free(params C.libraw_output_params_t) {
-	if opts.OutputProfile != "" {
-		C.free(unsafe.Pointer(params.output_profile))
+	for _, s := range []*C.char{
+		params.output_profile,
+		params.camera_profile,
+		params.bad_pixels,
+		params.dark_frame,
+	} {
+		if s != nil {
+			C.free(unsafe.Pointer(s))
+		}
 	}
-
-	if opts.CameraProfile != "" {
-		C.free(unsafe.Pointer(params.camera_profile))
-	}
-
-	if opts.BadPixels != "" {
-		C.free(unsafe.Pointer(params.bad_pixels))
-	}
-
-	if opts.DarkFrame != "" {
-		C.free(unsafe.Pointer(params.dark_frame))
-	}
-
 }
 
 // NewProcessorOptions creates a ProcessorOptions struct with the default values from LibRaw
@@ -278,6 +272,24 @@ func freeCString(s *C.char) {
 	C.free(unsafe.Pointer(s))
 }
 
+func librawErr(code C.int) error {
+	if code == 0 {
+		return nil
+	}
+	return fmt.Errorf("libraw: %s", C.GoString(C.libraw_strerror(code)))
+}
+
+// clearAndClose releases the memory image and closes the processor.
+func clearAndClose(proc *C.libraw_data_t, memImg *C.libraw_processed_image_t) {
+	if memImg != nil {
+		C.libraw_dcraw_clear_mem(memImg)
+	}
+	if proc != nil {
+		C.libraw_recycle(proc)
+		C.libraw_close(proc)
+	}
+}
+
 // processFile opens the file, unpacks it, processes it, and returns:
 //   - proc: the libraw processor pointer
 //   - memImg: the pointer to the in‑memory image returned by libraw_dcraw_make_mem_image
@@ -297,33 +309,23 @@ func (p *Processor) processFile(filepath string) (proc *C.libraw_data_t, memImg 
 	cFile := C.CString(filepath)
 	defer freeCString(cFile)
 
-	ret := C.libraw_open_file(proc, cFile)
-	if ret != 0 {
-		err = fmt.Errorf("libraw_open_file error: %s", C.GoString(C.libraw_strerror(C.int(ret))))
-		C.libraw_close(proc)
+	if err = librawErr(C.libraw_open_file(proc, cFile)); err != nil {
 		return
 	}
 
-	ret = C.libraw_unpack(proc)
-	if ret != 0 {
-		err = fmt.Errorf("libraw_unpack error: %s", C.GoString(C.libraw_strerror(C.int(ret))))
-		C.libraw_close(proc)
+	if err = librawErr(C.libraw_unpack(proc)); err != nil {
 		return
 	}
 
-	ret = C.libraw_dcraw_process(proc)
-	if ret != 0 {
-		err = fmt.Errorf("libraw_dcraw_process error: %s", C.GoString(C.libraw_strerror(C.int(ret))))
-		C.libraw_close(proc)
+	if err = librawErr(C.libraw_dcraw_process(proc)); err != nil {
 		return
 	}
 
 	var makeImgErr C.int
 	// memImg is a pointer to libraw_processed_image_t.
 	memImg = C.libraw_dcraw_make_mem_image(proc, &makeImgErr)
-	if makeImgErr != 0 || memImg == nil {
-		err = fmt.Errorf("libraw_dcraw_make_mem_image error: %s", C.GoString(C.libraw_strerror(makeImgErr)))
-		C.libraw_close(proc)
+
+	if err = librawErr(makeImgErr); err != nil || memImg == nil {
 		return
 	}
 
@@ -333,13 +335,6 @@ func (p *Processor) processFile(filepath string) (proc *C.libraw_data_t, memImg 
 	bits = memImg.bits
 
 	return
-}
-
-// clearAndClose releases the memory image and closes the processor.
-func clearAndClose(proc *C.libraw_data_t, memImg *C.libraw_processed_image_t) {
-	C.libraw_dcraw_clear_mem(memImg)
-	C.libraw_recycle(proc)
-	C.libraw_close(proc)
 }
 
 func ConvertToImage(data []byte, width, height, bits int) (image.Image, error) {
