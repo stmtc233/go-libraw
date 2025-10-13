@@ -12,14 +12,13 @@ import "C"
 import (
 	"fmt"
 	"image"
-	"log"
 	"time"
 	"unsafe"
 )
 
 type ImgMetadata struct {
 	CaptureTimestamp int64
-	CaptureDate time.Time
+	CaptureDate      time.Time
 }
 
 type OutputColor uint8
@@ -36,7 +35,6 @@ const (
 	Rec2020
 )
 
-
 type Box struct {
 	X1 uint // x1 or x
 	Y1 uint // y1 or y
@@ -46,7 +44,7 @@ type Box struct {
 }
 
 func (b *Box) toC() [4]C.uint {
-    return [4]C.uint{C.uint(b.X1), C.uint(b.Y1), C.uint(b.X2), C.uint(b.Y2)}
+	return [4]C.uint{C.uint(b.X1), C.uint(b.Y1), C.uint(b.X2), C.uint(b.Y2)}
 }
 
 func (b *Box) IsEmpty() bool {
@@ -54,50 +52,50 @@ func (b *Box) IsEmpty() bool {
 }
 
 type ProcessorOptions struct {
-	Greybox Box // coordinates (in pixels) of the rectangle that is used to calculate the white balance
-	Cropbox Box // image cropping re ctangle
-	Aber [4]float64 // correction of chromatic aberrations
-	Gamm [6]float64 // user gamma-curve
-	UserMul [4]float32 // 4 multipliers (r,g,b,g) of the user's white balance
-	Bright float32
+	Greybox   Box        // coordinates (in pixels) of the rectangle that is used to calculate the white balance
+	Cropbox   Box        // image cropping re ctangle
+	Aber      [4]float64 // correction of chromatic aberrations
+	Gamm      [6]float64 // user gamma-curve
+	UserMul   [4]float32 // 4 multipliers (r,g,b,g) of the user's white balance
+	Bright    float32
 	Threshold float32 // threshold for wavelet denoising
 
-	HalfSize bool // output image at 50% size
-	FourColorRGB bool // switches on separate interpolations for two green components
-	Highlight int // 0-9: Highlight mode (0=clip, 1=unclip, 2=blend, 3+=rebuild)
-	UseAutoWb bool
-	UseCameraWb bool
+	HalfSize        bool // output image at 50% size
+	FourColorRGB    bool // switches on separate interpolations for two green components
+	Highlight       int  // 0-9: Highlight mode (0=clip, 1=unclip, 2=blend, 3+=rebuild)
+	UseAutoWb       bool
+	UseCameraWb     bool
 	UseCameraMatrix int
 
 	OutputColor OutputColor
-	
+
 	OutputProfile string // path to output profile ICC file
 	CameraProfile string // path to input profile ICC file, or 'embed' for embedded profile
-	BadPixels string // path to bad pixels map file
-	DarkFrame string // path to dark frame file
-	
-	OutputBps int // 8 or 16
-	OutputTiff bool
-	OutputFlags int // Bitfield that allows to set output file options
-	UserFlip int // EXIF rotation flags -> 0 = no rotation
-	UserQual int // Interpolaton -> 0 = Linear, 1 = VNG, 2 = PPG, 3 = AHD
-	UserBlack int
-	UserCblack [4]int // per-channel black level offsets
-	UserSat int // Saturation
-	MedPasses int // median filter passes for noise reduction
-	AutoBrightThr float32 // Threshold for auto-brightness correction
+	BadPixels     string // path to bad pixels map file
+	DarkFrame     string // path to dark frame file
+
+	OutputBps        int // 8 or 16
+	OutputTiff       bool
+	OutputFlags      int // Bitfield that allows to set output file options
+	UserFlip         int // EXIF rotation flags -> 0 = no rotation
+	UserQual         int // Interpolaton -> 0 = Linear, 1 = VNG, 2 = PPG, 3 = AHD
+	UserBlack        int
+	UserCblack       [4]int  // per-channel black level offsets
+	UserSat          int     // Saturation
+	MedPasses        int     // median filter passes for noise reduction
+	AutoBrightThr    float32 // Threshold for auto-brightness correction
 	AdjustMaximumThr float32 // Threshold for adjusting maximum brigtness value in auto-exposure calculations
-	NoAutoBright bool // 0 = enable auto-brightness, 1 = disabled
-	UseFujiRotate bool // 1 apply Fuji sensor rotation
-	GreenMatching bool // Enable green channel equalization
-	DcbIterations int
-	DcbEnhanceFl bool
-	FbddNoiserd int // 0 = do not use, 1 = light reduction, 2 full reduction
-	ExpCorrect bool
-	ExpShift float32
-	ExpPreser float32
-	NoAutoScale bool
-	NoInterpolation bool
+	NoAutoBright     bool    // 0 = enable auto-brightness, 1 = disabled
+	UseFujiRotate    bool    // 1 apply Fuji sensor rotation
+	GreenMatching    bool    // Enable green channel equalization
+	DcbIterations    int
+	DcbEnhanceFl     bool
+	FbddNoiserd      int // 0 = do not use, 1 = light reduction, 2 full reduction
+	ExpCorrect       bool
+	ExpShift         float32
+	ExpPreser        float32
+	NoAutoScale      bool
+	NoInterpolation  bool
 }
 
 func (opts *ProcessorOptions) bool(v bool) C.int {
@@ -148,7 +146,6 @@ func (opts *ProcessorOptions) Apply(params C.libraw_output_params_t) C.libraw_ou
 
 	params.output_color = C.int(opts.OutputColor)
 
-	// Free me :)
 	if opts.OutputProfile != "" {
 		params.output_profile = C.CString(opts.OutputProfile)
 	}
@@ -197,7 +194,6 @@ func (opts *ProcessorOptions) Apply(params C.libraw_output_params_t) C.libraw_ou
 	return params
 }
 
-
 func (opts *ProcessorOptions) Free(params C.libraw_output_params_t) {
 	if opts.OutputProfile != "" {
 		C.free(unsafe.Pointer(params.output_profile))
@@ -215,59 +211,57 @@ func (opts *ProcessorOptions) Free(params C.libraw_output_params_t) {
 		C.free(unsafe.Pointer(params.dark_frame))
 	}
 
-
 }
 
 // NewProcessorOptions creates a ProcessorOptions struct with the default values from LibRaw
 func NewProcessorOptions() ProcessorOptions {
 	return ProcessorOptions{
-		Greybox:  Box{0, 0, 0, 0},
-		Cropbox:  Box{0, 0, 0, 0},
-		Aber:     [4]float64{1.0, 1.0, 1.0, 1.0},
-		Gamm:     [6]float64{0.45, 4.5, 0.0, 0.0, 0.0, 0.0},
-		UserMul:  [4]float32{0.0, 0.0, 0.0, 0.0},
-		Bright:   1.0,
+		Greybox:   Box{0, 0, 0, 0},
+		Cropbox:   Box{0, 0, 0, 0},
+		Aber:      [4]float64{1.0, 1.0, 1.0, 1.0},
+		Gamm:      [6]float64{0.45, 4.5, 0.0, 0.0, 0.0, 0.0},
+		UserMul:   [4]float32{0.0, 0.0, 0.0, 0.0},
+		Bright:    1.0,
 		Threshold: 0.0,
 
-		HalfSize:          false,
-		FourColorRGB:      false,
-		Highlight:         0,
-		UseAutoWb:         false,
-		UseCameraWb:       false,
-		UseCameraMatrix:   1,
+		HalfSize:        false,
+		FourColorRGB:    false,
+		Highlight:       0,
+		UseAutoWb:       false,
+		UseCameraWb:     false,
+		UseCameraMatrix: 1,
 
-		OutputColor: 1,
+		OutputColor:   1,
 		OutputProfile: "",
 		CameraProfile: "",
-		BadPixels: "",
-		DarkFrame: "",
+		BadPixels:     "",
+		DarkFrame:     "",
 
-		OutputBps:    8,
-		OutputTiff:   false,
-		OutputFlags:  0,
-		UserFlip:     -1,
-		UserQual:     -1,
-		UserBlack:    -1,
-		UserCblack:   [4]int{0, 0, 0, 0},
-		UserSat:      -1,
+		OutputBps:   8,
+		OutputTiff:  false,
+		OutputFlags: 0,
+		UserFlip:    -1,
+		UserQual:    -1,
+		UserBlack:   -1,
+		UserCblack:  [4]int{0, 0, 0, 0},
+		UserSat:     -1,
 
-		MedPasses:          0,
-		AutoBrightThr:      0.01,
-		AdjustMaximumThr:   0.75,
-		NoAutoBright:       false,
-		UseFujiRotate:      true,
-		GreenMatching:      false,
-		DcbIterations:      0,
-		DcbEnhanceFl:       false,
-		FbddNoiserd:        0,
-		ExpCorrect:         false,
-		ExpShift:           1.0,
-		ExpPreser:          0.0,
-		NoAutoScale:        false,
-		NoInterpolation:    false,
+		MedPasses:        0,
+		AutoBrightThr:    0.01,
+		AdjustMaximumThr: 0.75,
+		NoAutoBright:     false,
+		UseFujiRotate:    true,
+		GreenMatching:    false,
+		DcbIterations:    0,
+		DcbEnhanceFl:     false,
+		FbddNoiserd:      0,
+		ExpCorrect:       false,
+		ExpShift:         1.0,
+		ExpPreser:        0.0,
+		NoAutoScale:      false,
+		NoInterpolation:  false,
 	}
 }
-
 
 // Processor is a stateless wrapper for libraw processing.
 // Each method creates its own libraw processor so that calls are goroutine‐safe.
@@ -285,9 +279,9 @@ func freeCString(s *C.char) {
 }
 
 // processFile opens the file, unpacks it, processes it, and returns:
-//  - proc: the libraw processor pointer
-//  - memImg: the pointer to the in‑memory image returned by libraw_dcraw_make_mem_image
-//  - dataSize, height, width, bits: image details
+//   - proc: the libraw processor pointer
+//   - memImg: the pointer to the in‑memory image returned by libraw_dcraw_make_mem_image
+//   - dataSize, height, width, bits: image details
 func (p *Processor) processFile(filepath string) (proc *C.libraw_data_t, memImg *C.libraw_processed_image_t, dataSize C.uint,
 	height, width, bits C.ushort, err error) {
 
@@ -348,78 +342,73 @@ func clearAndClose(proc *C.libraw_data_t, memImg *C.libraw_processed_image_t) {
 	C.libraw_close(proc)
 }
 
-
 func ConvertToImage(data []byte, width, height, bits int) (image.Image, error) {
-    // Check if we have the expected amount of data for RGB
-    expectedSize := width * height * 3 // 3 bytes per pixel for RGB
-    if len(data) != expectedSize {
-        return nil, fmt.Errorf("unexpected data size: got %d, want %d", len(data), expectedSize)
-    }
+	// Check if we have the expected amount of data for RGB
+	expectedSize := width * height * 3 // 3 bytes per pixel for RGB
+	if len(data) != expectedSize {
+		return nil, fmt.Errorf("unexpected data size: got %d, want %d", len(data), expectedSize)
+	}
 
-    // Create a new RGB image
-    img := image.NewRGBA(image.Rect(0, 0, width, height))
-    
-    // Convert the raw RGB data to RGBA
-    for y := 0; y < height; y++ {
-        for x := 0; x < width; x++ {
-            offset := (y*width + x) * 3 // 3 bytes per pixel in source
-            r := data[offset]
-            g := data[offset+1]
-            b := data[offset+2]
-            
-            // Set pixel in the RGBA image
-            dstOffset := (y*width + x) * 4 // 4 bytes per pixel in RGBA
-            img.Pix[dstOffset] = r
-            img.Pix[dstOffset+1] = g
-            img.Pix[dstOffset+2] = b
-            img.Pix[dstOffset+3] = 255 // Alpha channel
-        }
-    }
-    
-    return img, nil
+	// Create a new RGB image
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+
+	// Convert the raw RGB data to RGBA
+	for y := range height {
+		for x := range width {
+			offset := (y*width + x) * 3 // 3 bytes per pixel in source
+			r := data[offset]
+			g := data[offset+1]
+			b := data[offset+2]
+
+			// Set pixel in the RGBA image
+			dstOffset := (y*width + x) * 4 // 4 bytes per pixel in RGBA
+			img.Pix[dstOffset] = r
+			img.Pix[dstOffset+1] = g
+			img.Pix[dstOffset+2] = b
+			img.Pix[dstOffset+3] = 255 // Alpha channel
+		}
+	}
+
+	return img, nil
 }
 
 // ProcessRaw processes a RAW file and returns an image.Image along with metadata.
 func (p *Processor) ProcessRaw(filepath string) (img image.Image, meta ImgMetadata, err error) {
-    t0 := time.Now()
+	proc, dataPtr, dataSize, height, width, bits, err := p.processFile(filepath)
+	if err != nil {
+		return nil, ImgMetadata{}, err
+	}
+	defer clearAndClose(proc, dataPtr)
 
-    proc, dataPtr, dataSize, height, width, bits, err := p.processFile(filepath)
-    if err != nil {
-        return nil, ImgMetadata{}, err
-    }
-    defer clearAndClose(proc, dataPtr)
+	// Convert raw bytes to Go slice
+	dataBytes := C.GoBytes(unsafe.Pointer(&dataPtr.data[0]), C.int(dataSize))
 
-    // Convert raw bytes to Go slice
-    dataBytes := C.GoBytes(unsafe.Pointer(&dataPtr.data[0]), C.int(dataSize))
-
-    // Handle different bit depths
-    if bits > 8 {
-        // Convert higher bit depth to 8-bit
-        adjustedData := make([]byte, width*height*3)
-        for i := 0; i < len(dataBytes); i += 2 {
-            // Combine two bytes into one, shifting to 8-bit depth
-            if i+1 < len(dataBytes) {
+	// Handle different bit depths
+	if bits > 8 {
+		// Convert higher bit depth to 8-bit
+		adjustedData := make([]byte, width*height*3)
+		for i := 0; i < len(dataBytes); i += 2 {
+			// Combine two bytes into one, shifting to 8-bit depth
+			if i+1 < len(dataBytes) {
 				value := (uint16(dataBytes[i]) << 8) | uint16(dataBytes[i+1])
-                adjustedData[i/2] = byte(value >> (bits - 8))
-            }
-        }
-        dataBytes = adjustedData
-    }
+				adjustedData[i/2] = byte(value >> (bits - 8))
+			}
+		}
+		dataBytes = adjustedData
+	}
 
-    img, err = ConvertToImage(dataBytes, int(width), int(height), 8)
-    if err != nil {
-        return nil, ImgMetadata{}, fmt.Errorf("convert to image: %v", err)
-    }
+	img, err = ConvertToImage(dataBytes, int(width), int(height), 8)
+	if err != nil {
+		return nil, ImgMetadata{}, fmt.Errorf("convert to image: %v", err)
+	}
 
-    other := C.libraw_get_imgother(proc)
-    timestamp := int64(other.timestamp)
-    captureTime := time.Unix(timestamp, 0)
+	other := C.libraw_get_imgother(proc)
+	timestamp := int64(other.timestamp)
+	captureTime := time.Unix(timestamp, 0)
 
-    meta = ImgMetadata{
+	meta = ImgMetadata{
 		CaptureTimestamp: timestamp,
-        CaptureDate: captureTime,
-    }
-    log.Printf("Processed RAW %s in %v", filepath, time.Since(t0))
-    return img, meta, nil
+		CaptureDate:      captureTime,
+	}
+	return img, meta, nil
 }
-

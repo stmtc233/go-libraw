@@ -6,7 +6,7 @@ I needed a go binding for LibRaw to convert RAW image formats from Nikon and Can
 After doing some searching I only found some older wrappers that have been inactive for a while, so I decided to write my own.
 
 ## Install
-`go get github.com/seppedelanghe/go-libraw@v0.2.0`
+`go get github.com/seppedelanghe/go-libraw@v0.3.0`
 
 ## Options
 The LibRaw output params are passed to LibRaw using the `ProcessorOptions` struct. More information about LibRaw Output params can be found [here](https://www.libraw.org/docs/API-datastruct-eng.html#libraw_output_params_t)
@@ -32,6 +32,7 @@ Other:
 
 ### Tested on:
 - MacOS 13
+- MacOS 14
 - Ubuntu 24.04 ARM
 - Ubuntu 24.04 x64
 
