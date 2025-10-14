@@ -37,7 +37,9 @@ Other:
 - Ubuntu 24.04 x64
 
 ## Tests
-Running tests can be done using `go test -v .`
+- build `./tests/test_metadata.cpp` to `./test_metadata`
+- add images to `./testdata`
+- run tests using `go test -v .`
 
 ## Example usage
 ```go
@@ -49,6 +51,3 @@ img, metadata, err := processor.ProcessRaw(pathToRawFile)
 
 For a full example see: `cmd/example.go`
 
-
-## Credits
-- Existing golibraw wrapper by enricod: https://github.com/enricod/golibraw

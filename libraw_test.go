@@ -1,13 +1,18 @@
 package golibraw
 
 import (
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync"
 	"testing"
+
+	"github.com/seppedelanghe/go-libraw/pkg/metadata"
 )
 
 const testPath = "./testdata"
+const cppVersion = "./test_metadata"
 
 func getAllFilesInTestDir() []string {
 	entries, err := os.ReadDir(testPath)
@@ -19,6 +24,29 @@ func getAllFilesInTestDir() []string {
 		paths[i] = filepath.Join(testPath, e.Name())
 	}
 	return paths
+}
+
+func compareToC(path string, meta metadata.ImgMetadata) bool {
+	cmd := exec.Command(cppVersion, path)
+	output, err := cmd.Output()
+	if err != nil {
+		fmt.Println("Error running C++ program needed to compare LibRaw outputs:", err)
+		return false
+	}
+
+	outStr := string(output)
+	idataDebug := meta.IData.DebugFormat()
+	sizesDebug := meta.Sizes.DebugFormat()
+	var combined string = idataDebug + sizesDebug
+
+	eq := outStr == combined
+	if !eq {
+		fmt.Printf("C output:\n%s\n", outStr)
+		fmt.Printf("Go output:\n%s", combined)
+	}
+
+	return eq
+
 }
 
 // TestProcessRaw uses ProcessRaw to decode the RAW file into an image.Image and checks the metadata.
@@ -42,9 +70,12 @@ func TestProcessRaw(t *testing.T) {
 		if meta.CaptureTimestamp == 0 || meta.CaptureDate.IsZero() {
 			t.Error("ProcessRaw returned invalid metadata")
 		}
+
+		if !compareToC(path, meta) {
+			t.Errorf("Metadata returned from C != Go for '%s'", path)
+		}
 	}
 }
-
 
 // TestConcurrentProcessRaw runs ProcessRaw concurrently in multiple goroutines.
 func TestConcurrentProcessRaw(t *testing.T) {
@@ -68,6 +99,11 @@ func TestConcurrentProcessRaw(t *testing.T) {
 			if meta.CaptureTimestamp == 0 || meta.CaptureDate.IsZero() {
 				t.Errorf("Goroutine %d: returned invalid metadata", idx)
 			}
+
+			if !compareToC(path, meta) {
+				t.Errorf("Metadata returned from C != Go for '%s'", path)
+			}
+
 		}(i)
 	}
 	wg.Wait()
