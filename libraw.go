@@ -14,12 +14,9 @@ import (
 	"image"
 	"time"
 	"unsafe"
-)
 
-type ImgMetadata struct {
-	CaptureTimestamp int64
-	CaptureDate      time.Time
-}
+	"github.com/seppedelanghe/go-libraw/pkg/metadata"
+)
 
 type OutputColor uint8
 
@@ -279,6 +276,24 @@ func librawErr(code C.int) error {
 	return fmt.Errorf("libraw: %s", C.GoString(C.libraw_strerror(code)))
 }
 
+func cArrayToString(cArr [64]C.char) string {
+	// Find the null terminator
+	n := 0
+	for n < len(cArr) && cArr[n] != 0 {
+		n++
+	}
+
+	return string(C.GoBytes(unsafe.Pointer(&cArr[0]), C.int(n)))
+}
+
+func cColorDescToRunes(cArr [5]C.char) [5]rune {
+	var cdesc [5]rune
+	for i, char := range cArr {
+		cdesc[i] = rune(char)
+	}
+	return cdesc
+}
+
 // clearAndClose releases the memory image and closes the processor.
 func clearAndClose(proc *C.libraw_data_t, memImg *C.libraw_processed_image_t) {
 	if memImg != nil {
@@ -368,10 +383,10 @@ func ConvertToImage(data []byte, width, height, bits int) (image.Image, error) {
 }
 
 // ProcessRaw processes a RAW file and returns an image.Image along with metadata.
-func (p *Processor) ProcessRaw(filepath string) (img image.Image, meta ImgMetadata, err error) {
+func (p *Processor) ProcessRaw(filepath string) (image.Image, metadata.ImgMetadata, error) {
 	proc, dataPtr, dataSize, height, width, bits, err := p.processFile(filepath)
 	if err != nil {
-		return nil, ImgMetadata{}, err
+		return nil, metadata.ImgMetadata{}, err
 	}
 	defer clearAndClose(proc, dataPtr)
 
@@ -392,18 +407,46 @@ func (p *Processor) ProcessRaw(filepath string) (img image.Image, meta ImgMetada
 		dataBytes = adjustedData
 	}
 
-	img, err = ConvertToImage(dataBytes, int(width), int(height), 8)
+	img, err := ConvertToImage(dataBytes, int(width), int(height), 8)
 	if err != nil {
-		return nil, ImgMetadata{}, fmt.Errorf("convert to image: %v", err)
+		return nil, metadata.ImgMetadata{}, fmt.Errorf("convert to image: %v", err)
 	}
 
 	other := C.libraw_get_imgother(proc)
 	timestamp := int64(other.timestamp)
 	captureTime := time.Unix(timestamp, 0)
 
-	meta = ImgMetadata{
+	var isFoveon bool = false
+	if uint(proc.idata.is_foveon) == 1 {
+		isFoveon = true
+	}
+
+	idata := metadata.LibRawIData{
+		Make:             cArrayToString(proc.idata.make),
+		Model:            cArrayToString(proc.idata.model),
+		MakerIndex:       uint(proc.idata.maker_index),
+		Software:         cArrayToString(proc.idata.software),
+		RawCount:         uint(proc.idata.raw_count),
+		IsFoveon:         isFoveon,
+		DngVersion:       uint(proc.idata.dng_version),
+		Colors:           int(proc.idata.colors),
+		ColorDescription: cColorDescToRunes(proc.idata.cdesc),
+	}
+
+	sizes := metadata.LibRawSizes{
+		RawHeight: uint16(proc.sizes.raw_height),
+		RawWidth:  uint16(proc.sizes.raw_width),
+		Height:    uint16(proc.sizes.height),
+		Width:     uint16(proc.sizes.width),
+		Iheight:   uint16(proc.sizes.iheight),
+		Iwidth:    uint16(proc.sizes.iwidth),
+	}
+
+	meta := metadata.ImgMetadata{
 		CaptureTimestamp: timestamp,
 		CaptureDate:      captureTime,
+		IData:            idata,
+		Sizes:            sizes,
 	}
 	return img, meta, nil
 }
