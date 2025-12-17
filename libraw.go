@@ -3,8 +3,7 @@
 // inside a configurable Processor type.
 package golibraw
 
-// #cgo CFLAGS: -I/opt/homebrew/include
-// #cgo LDFLAGS: -L/opt/homebrew/lib -lraw
+// #cgo LDFLAGS: -lraw -lws2_32 -lstdc++
 // #include "libraw/libraw.h"
 // #include <stdlib.h>
 import "C"
@@ -15,8 +14,25 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/seppedelanghe/go-libraw/pkg/metadata"
+	"github.com/stmtc233/go-libraw/pkg/metadata"
 )
+
+type ThumbnailFormat int
+
+const (
+	ThumbJpeg    ThumbnailFormat = 1 // LIBRAW_IMAGE_JPEG
+	ThumbBitmap  ThumbnailFormat = 2 // LIBRAW_IMAGE_BITMAP
+	ThumbUnknown ThumbnailFormat = 0
+)
+
+type Thumbnail struct {
+	Format ThumbnailFormat
+	Data   []byte
+	Width  uint16
+	Height uint16
+	Colors uint16
+	Bits   uint16
+}
 
 type OutputColor uint8
 
@@ -380,6 +396,67 @@ func ConvertToImage(data []byte, width, height, bits int) (image.Image, error) {
 	}
 
 	return img, nil
+}
+
+// ExtractThumbnail extracts the embedded thumbnail from the RAW file.
+func (p *Processor) ExtractThumbnail(filepath string) (*Thumbnail, error) {
+	proc := C.libraw_init(0)
+	if proc == nil {
+		return nil, fmt.Errorf("failed to initialize libraw")
+	}
+	defer func() {
+		C.libraw_recycle(proc)
+		C.libraw_close(proc)
+	}()
+
+	cFile := C.CString(filepath)
+	defer freeCString(cFile)
+
+	if err := librawErr(C.libraw_open_file(proc, cFile)); err != nil {
+		return nil, err
+	}
+
+	if err := librawErr(C.libraw_unpack_thumb(proc)); err != nil {
+		return nil, err
+	}
+
+	var errc C.int
+	memThumb := C.libraw_dcraw_make_mem_thumb(proc, &errc)
+	if memThumb == nil {
+		return nil, librawErr(errc)
+	}
+	defer C.libraw_dcraw_clear_mem(memThumb)
+
+	// Convert data
+	dataSize := int(memThumb.data_size)
+	dataPtr := unsafe.Pointer(&memThumb.data[0])
+	dataBytes := C.GoBytes(dataPtr, C.int(dataSize))
+
+	// Copy data to new slice because memThumb will be freed
+	finalData := make([]byte, len(dataBytes))
+	copy(finalData, dataBytes)
+
+	format := ThumbUnknown
+	// In C struct libraw_processed_image_t, the field is 'type', which conflicts with Go keyword.
+	// Cgo usually maps it to _type.
+	// We use hardcoded values based on LibRaw definitions:
+	// LIBRAW_IMAGE_JPEG = 1
+	// LIBRAW_IMAGE_BITMAP = 2
+	switch int(memThumb._type) {
+	case 1:
+		format = ThumbJpeg
+	case 2:
+		format = ThumbBitmap
+	default:
+		format = ThumbUnknown
+	}
+
+	return &Thumbnail{
+		Format: format,
+		Data:   finalData,
+		Colors: uint16(memThumb.colors),
+		Bits:   uint16(memThumb.bits),
+	}, nil
 }
 
 // ProcessRaw processes a RAW file and returns an image.Image along with metadata.

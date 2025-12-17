@@ -5,7 +5,7 @@ import (
 	"image/jpeg"
 	"os"
 
-	libraw "github.com/seppedelanghe/go-libraw"
+	libraw "github.com/stmtc233/go-libraw"
 )
 
 const RawPath = "testdata/_SPC2147.NEF"

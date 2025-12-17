@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/seppedelanghe/go-libraw/pkg/metadata"
+	"github.com/stmtc233/go-libraw/pkg/metadata"
 )
 
 const testPath = "./testdata"
